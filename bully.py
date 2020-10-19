@@ -5,16 +5,32 @@
 
 # If P receives a Coordinator message, it treats the sender as the coordinator
 
+# When any process notices that the coordinator is no longer responding to requests, it initiates an election.
+
+# When to elect a coordinator
+# - When the system 
+
 
 class Node:
-    __init__(self, pid, coordinator = False):
+    __init__(self, pid, coordinator = False, leader_id = 0):
         self.PID = pid
-        self.leader = False
-        self.coordinator = coordinator
+        self.coodinator = coordinator
+        self.leader_id = 0
 
     
-
+    def announce_victory(self, list_of_nodes):
+        for node in list_of_nodes:
+            node.leader_id = self.PID
     
+
+    def check_coordinator(self):
+        pass
+
+        msg "foo"
+
+        if not msg == "OK":
+            self.election()
+
 
     def election(self):
         pass
@@ -30,18 +46,30 @@ class Node:
 class Network:
     __init__(self):
         self.counter = 0
-        self.nodes = {}
+        self.nodes = []  # list of nodes
 
-    def attach(self, PID):
-        pass
+
+    def attach(self, node):
+        nodes.attach(node)
 
     def deattach(self, PID):
+        pass
+
+    def initialize(self):
+        # initialize system by finding a leader
         pass
 
 
 
 def main():
-    pass
+    nw = Network()
+    nw.attach(Node(1))
+    nw.attach(Node(2))
+    # ....
+
+    nw.initialize()
+    
+
 
 if __name__ == "__main__":
     main()
