@@ -8,20 +8,18 @@
 # When any process notices that the coordinator is no longer responding to requests, it initiates an election.
 
 # When to elect a coordinator
-# - When the system 
+# - When the system
 
 
 class Node:
-    __init__(self, pid, coordinator = False, leader_id = 0):
+    def __init__(self, pid, coordinator=False, leader_id=0):
         self.PID = pid
         self.coodinator = coordinator
         self.leader_id = 0
 
-    
     def announce_victory(self, list_of_nodes):
         for node in list_of_nodes:
             node.leader_id = self.PID
-    
 
     def check_coordinator(self):
         pass
@@ -30,7 +28,6 @@ class Node:
 
         if not msg == "OK":
             self.election()
-
 
     def election(self):
         pass
@@ -44,13 +41,12 @@ class Node:
 
 
 class Network:
-    __init__(self):
+    def __init__(self):
         self.counter = 0
         self.nodes = []  # list of nodes
 
-
     def attach(self, node):
-        nodes.attach(node)
+        self.nodes.append(node)
 
     def deattach(self, PID):
         pass
@@ -60,7 +56,6 @@ class Network:
         pass
 
 
-
 def main():
     nw = Network()
     nw.attach(Node(1))
@@ -68,9 +63,9 @@ def main():
     # ....
 
     nw.initialize()
-    
 
-    # sdsd 
+    # sdsd
+
 
 if __name__ == "__main__":
     main()
