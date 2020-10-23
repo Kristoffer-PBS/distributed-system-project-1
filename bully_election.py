@@ -16,6 +16,7 @@ class Node:
         self.PID = pid
         self.coodinator = coordinator
         self.leader_id = 0
+        self.nodes = []
 
     def announce_victory(self, list_of_nodes):
         for node in list_of_nodes:
@@ -69,6 +70,10 @@ def main():
     nw = Network()
     nw.attach(Node(1))
     nw.attach(Node(2))
+    nw.attach(Node(3))
+    nw.attach(Node(4))
+    nw.attach(Node(5))
+    nw.attach(Node(6))
     # ....
 
     nw.initialize()
