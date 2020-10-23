@@ -16,6 +16,7 @@ class Node:
         self.PID = pid
         self.coodinator = coordinator
         self.leader_id = 0
+        self.active = True
         self.nodes = []
 
     def announce_victory(self, list_of_nodes):
@@ -31,6 +32,9 @@ class Node:
             self.election()
 
     def election(self):
+        # node i attepts to become coordinator. 
+        # First step is to check if any higher priority nodes  are up,
+        # iff any such nodee is up, quit.
         pass
 
     def respond(self):
@@ -77,6 +81,9 @@ def main():
     # ....
 
     nw.initialize()
+
+    for i in range(0, 100):
+        nw.tick()
 
     # sdsd
 
