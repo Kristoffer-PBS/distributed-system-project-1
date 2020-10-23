@@ -47,13 +47,22 @@ class Network:
 
     def attach(self, node):
         self.nodes.append(node)
+        self.counter += 1
 
     def deattach(self, PID):
-        pass
+        if PID < self.counter:
+            self.nodes.pop(PID)
+            self.counter -= 1
 
     def initialize(self):
+
         # initialize system by finding a leader
         pass
+
+    def tick(self):
+        """Represent one logic progression in time"""
+        for node in self.nodes:
+            node.check_coordinator()
 
 
 def main():
@@ -65,6 +74,9 @@ def main():
     nw.initialize()
 
     # sdsd
+
+    # need to test if the coordinator  in the system goes down
+    # and when a node that is not the coordinator goes down
 
 
 if __name__ == "__main__":
