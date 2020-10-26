@@ -1,3 +1,11 @@
+#!/usr/bin/env python
+
+import zerorpc
+import gevent
+
+import sys
+
+
 # Bully Algorithm
 # - Each node has an unique ID
 # - Each node communicates with each other and broadcasts their ID
@@ -12,18 +20,46 @@
 
 
 class Node:
-    def __init__(self, pid, coordinator=False, leader_id=0):
-        self.PID = pid
-        self.coodinator = coordinator
-        self.leader_id = 0
+    """ Node class representing a single node in the network.
+        data:
+            @node_id: unsigned int --
+            @coordinator: unsigned int --
+            @coordinator_id: unsigned int --
+            @active: bool --
+            @nodes: [Node] --
+
+        methods:
+            activate() --
+            check_coordinator() -
+            deactivate() --
+            election() -
+
+        exceptions:
+            No exceptions can be trown by this class
+    """
+
+    def __init__(self, node_id, coordinator_id=None, coordinator=False):
+        """ Constructor method
+        """
         self.active = True
+        self.coodinator = coordinator
+        self.coodinator_id = coordinator_id
+        self.node_id = node_id
         self.nodes = []
 
+    def activate(self):
+        self.active = True
+        self.election()
+
     def announce_victory(self, list_of_nodes):
+        """
+        """
         for node in list_of_nodes:
             node.leader_id = self.PID
 
     def check_coordinator(self):
+        """
+        """
         pass
 
         msg "foo"
@@ -32,7 +68,9 @@ class Node:
             self.election()
 
     def election(self):
-        # node i attepts to become coordinator. 
+        """
+        """
+        # node i attepts to become coordinator.
         # First step is to check if any higher priority nodes  are up,
         # iff any such nodee is up, quit.
         pass
@@ -42,10 +80,27 @@ class Node:
         pass
 
     def is_leader(self):
+        """
+        """
         return self.leader
 
 
 class Network:
+    """ Network class representing a network of nodes.
+        data:
+            @counter: unsigned int -- number of active nodes in the network
+            @nodes: [node]         -- List of nodes
+
+        methods:
+            attach(node: Node) -
+            deattach(node_id: unsigned int) -
+            initialize() -
+            tick()
+
+        exceptions:
+            No exceptions can be trown by this class
+    """
+
     def __init__(self):
         self.counter = 0
         self.nodes = []  # list of nodes
@@ -69,6 +124,8 @@ class Network:
         for node in self.nodes:
             node.check_coordinator()
 
+
+# Testing code
 
 def main():
     nw = Network()
