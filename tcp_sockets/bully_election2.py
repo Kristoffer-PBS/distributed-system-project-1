@@ -11,6 +11,8 @@ from typing import Any, Dict, List, Tuple, Optional
 import inspect # debug information
 from enum import Enum, unique
 
+from pickle import dump, loads
+
 
 def get_line_info() -> None:
     """
@@ -53,15 +55,15 @@ class Node:
         def __str__(self) -> str:
             return "coordinator {} {} {}".format(self.coordinator_ip, self.coordinator_port, self.coordinator_id)
 
-        def update(self, process_ip: str, server_port: int, network_id: int) -> None:
+        def update(self, host_ip: str, server_port: int, network_id: int) -> None:
             """
             Updates self information about which node is the coordinator in the network.
             args:
-                @process_ip: str  --
+                @host_ip: str  --
                 @server_port: int --
                 @network_id: int  --
             """
-            self.coordinator_ip   = process_ip
+            self.coordinator_ip   = host_ip
             self.coordinator_port = server_port
             self.coordinator_id   = network_id
 
@@ -93,7 +95,7 @@ class Node:
     maxID: int
     network_id: int
     number_of_connections: int
-    process_ip: str
+    host_ip: str
     process_server_port: int
     process_client_port: int
     # TODO change to proper type
@@ -101,16 +103,16 @@ class Node:
 
 
 
-    def __init__(self, process_ip: str, client_port: int, server_port: int, network_id: int) -> None:
+    def __init__(self, host_ip: str, client_port: int, server_port: int, network_id: int) -> None:
         """
         Constructor method.
         args:
-            @process_ip: str --
+            @host_ip: str --
             @server_port: int --
             @client_port: int --
             @network_id: int --
         """
-        self.process_ip  = process_ip
+        self.host_ip  = host_ip
         self.client_port = client_port
         self.server_port = server_port
         self.network_id  = network_id
@@ -125,6 +127,8 @@ class Node:
 
         for line in network_config.readlines():
             line = line.rstrip()
+            # TODO
+            host_ip, server_port, publisher_port, id = line.split()
             line = parse.parse('{} {} {} {}', line)
 
             self.maxID = max(self.maxID, int(line[3]))
@@ -146,7 +150,8 @@ class Node:
         for node in self.nodes:
             # TODO this is a bit ambiguous with the variable naming
             if node.id != self.network_id:
-                self.subscriber_socket.connect("tcp://{}:{}".format(node.ip, node.server_port))
+                self.subscriber_socket.connect(f"tcp://{node.ip}:{node.server_port}")
+                # self.subscriber_socket.connect("tcp://{}:{}".format(node.ip, node.server_port))
 
 
     # ------------------------------------------------------------------------------------------------------------------
@@ -158,37 +163,18 @@ class Node:
         for node in self.nodes:
             if node.id > self.network_id:
                 # TODO is it really node.client_port ????
-                self.client_socket.connect("tcp://{}:{}".format(node.ip, node.client_port))
+                self.client_socket.connect(f"tcp://{node.ip}:{node.client_port}")
+                # self.client_socket.connect("tcp://{}:{}".format(node.ip, node.client_port))
 
     # ------------------------------------------------------------------------------------------------------------------
-    # def clock_tick(self, process=None) -> None:
-    #     """
-    #     main loop
-    #     """
-    #     if process is State.Coordinator:
-    #         while int(self.coordinator_id) == int(self.network_id):
-    #             self.clock_socket.send_string("alive {} {} {}".format(self.process_ip, self.process_server_port, self.network_id))
-    #             time.sleep(1)
-    #     else:
-    #         while True:
-    #             try:
-    #                 coordinator_clock_tick = self.clock_socket2.recv_string()
-    #                 request = parse.parse("alive {} {} {}".format(coordinator_clock_tick))
-    #                 if (int(request[0] > self.network_id)):
-    #                     cprint("coordinator {}".format(coordinator_clock_tick), 'green')
-    #                     self.update_coordinator(str(request[0]), str(request[1]), int(request[2]))
-    #             except:
-    #                 if not self.is_coordinator():
-    #                     cprint("Coordinator is down, starting election\n", 'red')
-    #                     self.coordinator_id = -1
-
-    # ------------------------------------------------------------------------------------------------------------------
-    def declare_coordinator(self) -> None:
+    def declare_coordinator(self, msg_count: int) -> None:
         """
         """
-        cprint("[{}:{}] is the new coordinator.".format(self.process_ip, self.server_port), 'cyan')
-        self.coordinator.update(self.process_ip, self.server_port, self.network_id)
+        cprint(f"[{self.host_ip}:{self.server_port}] is the new coordinator", 'green')
+        # cprint("[{}:{}] is the new coordinator.".format(self.host_ip, self.server_port), 'cyan')
+        self.coordinator.update(self.host_ip, self.server_port, self.network_id)
 
+        #coordinator_publisher_thread: Thread = threading.Thread(target=self.check_network, args=["COORDINATOR"])
         coordinator_publisher_thread: Thread = threading.Thread(target=self.check_network, args=["COORDINATOR"])
         coordinator_publisher_thread.start()
 
@@ -201,7 +187,8 @@ class Node:
         """
         for node in self.nodes:
             # self.client_socket.disconnect("tcp://{}:{}".format(node.ip, node.server_port))
-            self.client_socket.disconnect("tcp://{}:{}".format(node.ip, node.client_port))
+            # self.client_socket.disconnect("tcp://{}:{}".format(node.ip, node.client_port))
+            self.client_socket.disconnect(f"tcp://{node.ip}:{node.client_port}")
 
     # ------------------------------------------------------------------------------------------------------------------
     def establish_connection(self, TIMEOUT: int) -> None:
@@ -221,22 +208,35 @@ class Node:
 
         # create a reply socket for the server port
         self.server_socket = self.context.socket(zmq.REP)
-        self.server_socket.bind("tcp://{}:{}".format(self.process_ip, self.server_port))
+        self.server_socket.bind(f"tcp://{self.host_ip}:{self.server_port}")
+        # self.server_socket.bind("tcp://{}:{}".format(self.host_ip, self.server_port))
 
         self.connect_to_higher_ids()
 
         self.middleware_context = zmq.Context()
 
         self.publisher_socket = self.middleware_context.socket(zmq.PUB)
-        self.publisher_socket.bind("tcp://{}:{}".format(self.process_ip, self.client_port))
+        self.publisher_socket.bind(f"tcp://{self.host_ip}:{self.client_port}")
+        # self.publisher_socket.bind("tcp://{}:{}".format(self.host_ip, self.client_port))
+
+        # list of subsribers
+        self.subscribers = []
 
         self.subscriber_socket = self.middleware_context.socket(zmq.SUB)
         # set the timeout duration to TIMEOUT
         self.subscriber_socket.setsockopt(zmq.RCVTIMEO, TIMEOUT)
-
+        # topic subscribtion filter
+        # self.subscriber_socket.setsockopt(zmq.SUBSCRIBE, "")
         self.connect_to_network()
-        # TODO why subscribe("")
         self.subscriber_socket.subscribe("")
+
+        get_line_info()
+        # TODO why subscribe("")
+        # By subscribing to "" (an empty subscription), the subscriber will get everything
+        # published on the topic/port (every single topic from publisher)
+
+        # assert
+        # self.context.destroy()
 
 
     # ------------------------------------------------------------------------------------------------------------------
@@ -250,27 +250,34 @@ class Node:
     # TODO maybe not the best name
     # FIXME could be called check instead
     # TODO use an enum type instead of a plain string
-    def check_network(self, state: self.State) -> None:
+    def check_network(self, state: str) -> None:
         """
         """
-        # TODO is process the right variable name ???
-        if state is self.State.Normal:
+
+        #if state is self.State.Normal:
+        if state == "NORMAL":
             while True:
                 try:
                     coordinator_msg = self.subscriber_socket.recv_string()
-                    request = parse.parse("UP {} {} {}", coordinator_msg)
+                    # request = parse.parse("UP {} {} {}", coordinator_msg)
+                    _, host_ip, client_port, network_id = coordinator_msg.split()
                     if int(request[2]) > self.network_id:
                         cprint("coordinator {} is UP".format(coordinator_msg), 'green')
                         self.coordinator.update(str(request[0]), int(request[1]), int(request[2]))
-                except:
+                # except:
+                except zmq.ZMQError as e:
                     if self.coordinator.coordinator_id != self.network_id:
                         cprint("Coordinator is down, an election will be started\n", 'red')
                         self.coordinator.coordinator_id = None
 
-        elif state is self.State.Coordinator:
+        #elif state is self.State.Coordinator:
+        elif state == "COORDINATOR":
             while self.coordinator.coordinator_id == self.network_id:
                 # TODO are we sure about the self.client_port
-                self.publisher_socket.send_string("UP {} {} {}".format(self.process_ip, self.client_port, self.network_id))
+                # self.publisher_socket.send_string(b"UP {} {} {} {}".)
+                self.publisher_socket.send_string(f"UP {self.host_ip} {self.client_port} {self.network_id}")
+                # self.publisher_socket.send_string("UP {} {} {}".format(self.host_ip, self.client_port, self.network_id))
+                get_line_info()
                 time.sleep(1)
 
 
@@ -280,7 +287,7 @@ class Node:
         # if process == "COORDINATOR":
         #     while self.coordinator.coordinator_id == self.network_id:
         #         # TODO are we sure about the self.client_port
-        #         self.publisher_socket.send_string("UP {} {} {}".format(self.process_ip, self.client_port, self.network_id))
+        #         self.publisher_socket.send_string("UP {} {} {}".format(self.host_ip, self.client_port, self.network_id))
         #         time.sleep(1)
         # else:
         #     while True:
@@ -303,7 +310,7 @@ class Node:
         self.establish_connection(2000)
 
         # TODO do we need the args=[]
-        publisher_thread: Thread = threading.Thread(target=self.check_network, args=[])
+        publisher_thread: Thread = threading.Thread(target=self.check_network, args=["NORMAL"])
         publisher_thread.start()
 
         server_thread: Thread = threading.Thread(target=self.run_server, args=[])
@@ -317,6 +324,7 @@ class Node:
         """
         """
         while True:
+            # Wait for next request from client
             request: str = self.server_socket.recv_string()
             # TODO this is where we have to add the logic
             if request.startswith("ELECTION"):
@@ -332,14 +340,14 @@ class Node:
                     # If the node has the highest ID possible in the network (given by the network.config file)
                     # then it knows it is the coordinator, given the 'bully rule'
                     if self.network_id == self.maxID:
-                        self.declare_coordinator()
+                        self.declare_coordinator(2)
                     else:
                         self.client_socket.send_string("ELECTION")
                         request: str = self.client_socket.recv_string()
                 # If the recv_string() times out, then we know self is the highest node in the election
                 # and it becomes the coordinator
                 except:
-                    self.declare_coordinator()
+                    self.declare_coordinator(2)
 
 # ----------------------------------------------------------------------------------------------------------------------
 
@@ -360,17 +368,17 @@ def main() -> None:
         cprint("NOTE all four arguments MUST match one of the lines in the file network.config", 'red')
         sys.exit(1)
 
-    ip: str = str(sys.argv[1])
+    host_ip: str = str(sys.argv[1])
     client_port: int = int(sys.argv[2])
     server_port: int = int(sys.argv[3])
     network_id: int  = int(sys.argv[4])
 
-    if not check_input((ip, client_port, server_port, network_id)):
+    if not check_input((host_ip, client_port, server_port, network_id)):
         cprint("INVALID INPUT", 'red')
         # TODO
         sys.exit(1)
 
-    node: Node = Node(ip, client_port, server_port, network_id)
+    node: Node = Node(host_ip, client_port, server_port, network_id)
     try:
         node.run()
     # when hitting Ctrl+C
