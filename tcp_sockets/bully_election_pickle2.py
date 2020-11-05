@@ -1,25 +1,24 @@
 import zmq
 import time
-
+# import parse  # TODO
 import sys
 import threading
 from threading import Thread
 from termcolor import cprint
 
-from enum import Enum, unique
-from typing import List, Tuple, Optional
-
-import multiprocessing
-from multiprocessing import Process, ProcessError
-
+from typing import Any, Dict, List, Tuple, Optional
 import inspect  # debug information
+from enum import Enum, unique
+import pickle
+from pickle import dump, loads
+
 
 def get_line_info() -> None:
     """
     Helper function for debug purposes.
     """
-    print(inspect.stack()[1][1], ":", inspect.stack()[1][2], ":", inspect.stack()[1][3])
-
+    print(inspect.stack()[1][1], ":", inspect.stack()
+          [1][2], ":", inspect.stack()[1][3])
 
 
 class Node:
@@ -76,10 +75,6 @@ class Node:
         """
         Coordinator = 1
         Normal = 2
-        # TODO use this state and check for it to implement the election logic more explicitly
-        Halt = 3
-        Election = 4
-        Down = 5
 
         def __str__(self) -> str:
             return f"in state: {self.name}"
@@ -98,7 +93,6 @@ class Node:
     network_id: int
     number_of_connections: int
     coordinator: Coordinator
-    # TODO change to proper type
     nodes: List[Info]
 
     def __init__(self, host_ip: str, publisher_port: int, server_port: int, network_id: int) -> None:
@@ -139,24 +133,26 @@ class Node:
                 ))
                 self.number_of_nodes += 1
 
-        # TEST create a test here
-        cprint(f"maxid is {self.number_of_nodes}", 'magenta')
+        # TEST
+        assert(self.number_of_nodes == 8)
 
     # ------------------------------------------------------------------------------------------------------------------
-    # TODO maybe not the best name
-    # FIXME could be called check instead
     def check_network(self, state: str) -> None:
         """
-        If self is not the coordinator i.e. NORMAL then
-        """
+        If self is not the coordinator i.e. NORMAL then run an infinite loop, where the publisher
+        topic is repeatedetly listened to using self.subscriber_port. If no msg is received within the
+        timeout_limit of the socket, then we can assume the coordinator is down, and we can start an election.
 
-        # if state is self.State.Normal:
+        If self is the coordinator, then a loop is executed as long as self.network_id == self.coordinator.coordinator_id
+        In this loop a simple msg is constructed, and published, on this nodes publisher topic.
+        """
         if state == "NORMAL":
             while True:
                 try:
-                    # TODO this message gets through but not pickle
+                    # TODO maybe inser the self.ongoing_election here
+                    # check if a msg is published on the coordinator topic, and print the received
+                    # identifiers of the publisher, if it is up.
                     coordinator_msg = self.subscriber_socket.recv_string()
-                    # request = parse.parse("UP {} {} {}", coordinator_msg)
                     (_, host_ip, publisher_port, network_id) = coordinator_msg.split()
                     print(f"{host_ip} {publisher_port} {network_id}")
 
@@ -172,7 +168,6 @@ class Node:
                         cprint("Coordinator is down, an election will be started\n", 'red')
                         self.coordinator.coordinator_id = None
 
-        # elif state is self.State.Coordinator:
         elif state == "COORDINATOR":
             # The while condition is used to terminate the thread when a node with a higher ID, has
             # entered the network.
@@ -196,13 +191,10 @@ class Node:
         crashes/deactivates or when, a new node with an higher ID than self, joins
         the network, and take on the responsibility of being coordinator.
         """
-        cprint(
-            f"[{self.host_ip}:{self.server_port}] is the new coordinator", 'green')
-        self.coordinator.update(
-            self.host_ip, self.server_port, self.network_id)
+        cprint(f"[{self.host_ip}:{self.server_port}] is the new coordinator", 'green')
+        self.coordinator.update(self.host_ip, self.server_port, self.network_id)
 
-        cprint(
-            f"A total of {msg_count} messages were send this election", 'magenta')
+        cprint(f"A total of {msg_count} messages were send this election", 'magenta')
 
         # Create a coordinator publisher thread
         self.publisher_thread = threading.Thread(target=self.check_network, args=["COORDINATOR"])
@@ -222,8 +214,6 @@ class Node:
     #         # self.client_socket.disconnect("tcp://{}:{}".format(node.ip, node.server_port))
     #         # self.client_socket.disconnect("tcp://{}:{}".format(node.ip, node.publisher_port))
     #         self.client_socket.disconnect(f"tcp://{node.host_ip}:{node.server_port}")
-    #         # print("FOOFOFOFOFOF")
-    #         get_line_info()
 
     # ------------------------------------------------------------------------------------------------------------------
     def establish_connection(self, timeout_limit: int) -> None:
@@ -364,9 +354,7 @@ class Node:
         """
         """
         while True:
-            print("fuck")
             # Wait for next request from client, request are only send when an election is hold initiated
-            get_line_info()
             request = self.server_socket.recv_pyobj()
             if request["msg_type"] == "ELECTION":
                 msg = {"msg_type": "OK",
@@ -376,7 +364,6 @@ class Node:
                            "server_port": self.server_port,
                            "network_id": self.network_id,
                        },
-                       #    "args": None
                        "args": self.number_of_nodes - self.network_id
                        }
                 try:
@@ -385,7 +372,6 @@ class Node:
                         self.election()  # hold own election
                 except:
                     pass
-                    # continue
 
     # ------------------------------------------------------------------------------------------------------------------
     def run_client(self) -> None:
@@ -399,15 +385,6 @@ class Node:
                 self.election()
 
 # ----------------------------------------------------------------------------------------------------------------------
-
-# TODO
-
-
-def check_input(input: Tuple[str, int, int, int]) -> bool:
-    # pattern = re.compile('')
-    return True
-
-
 def main() -> None:
 
     if len(sys.argv) != 5:
@@ -416,8 +393,7 @@ def main() -> None:
         print("The first argument should be the host_ip address e.g. 127.0.0.1")
         print("The second- and third argument should be the client- and server port respectively e.g. 9000 9001")
         print("The fourth argument should be the unique unsigned integer id of the node being started e.g 2")
-        cprint(
-            "NOTE all four arguments MUST match one of the lines in the file network.config", 'red')
+        cprint("NOTE all four arguments MUST match one of the lines in the file network.config", 'red')
         sys.exit(1)
 
     host_ip: str = str(sys.argv[1])
@@ -427,16 +403,10 @@ def main() -> None:
 
     timeout_limit: int = 2500
 
-    if not check_input((host_ip, publisher_port, server_port, network_id)):
-        cprint("INVALID INPUT", 'red')
-        # TODO
-        sys.exit(1)
-
     node: Node = Node(host_ip, publisher_port, server_port, network_id)
     try:
         node.run(timeout_limit)
     # when hitting Ctrl+C
-    # FIXME does not enter
     except KeyboardInterrupt:
         node.disconnect()
 
