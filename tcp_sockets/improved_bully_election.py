@@ -1,6 +1,7 @@
 import zmq
 import time
 
+# import os # for os.getpid()
 import sys
 import threading
 from threading import Thread
@@ -69,21 +70,6 @@ class Node:
             self.coordinator_id = network_id
 
     # ------------------------------------------------------------------------------------------------------------------
-    @unique
-    class State(Enum):
-        """
-        Enumerated sub-type describing the behaveioural state of the Node
-        """
-        Coordinator = 1
-        Normal = 2
-        # TODO use this state and check for it to implement the election logic more explicitly
-        Halt = 3
-        Election = 4
-        Down = 5
-
-        def __str__(self) -> str:
-            return f"in state: {self.name}"
-    # ------------------------------------------------------------------------------------------------------------------
 
     """
         methods:
@@ -124,13 +110,14 @@ class Node:
         self.nodes = []
         self.number_of_nodes: int = 0
 
+        self.halted: bool = False
+
         # Use an with clause to automatically handle the relase of the file handle ressource when scope ends
         with open("network.config", 'r') as network_config:
             for line in network_config:
                 line = line.strip()  # strip newline character \n
                 # split the line by whitespace
                 (host_ip, publisher_port, server_port, network_id) = line.split()
-                # print(f"{host_ip}, {publisher_port}, {server_port}, {id}")
                 self.nodes.append(self.Info(
                     host_ip=host_ip,
                     publisher_port=int(publisher_port),
@@ -139,40 +126,85 @@ class Node:
                 ))
                 self.number_of_nodes += 1
 
-        # TEST create a test here
-        cprint(f"maxid is {self.number_of_nodes}", 'magenta')
+        # TEST
+        assert(self.number_of_nodes == 8)
 
     # ------------------------------------------------------------------------------------------------------------------
-    # TODO maybe not the best name
-    # FIXME could be called check instead
     def check_network(self, state: str) -> None:
         """
         If self is not the coordinator i.e. NORMAL then
         """
+        while True:
+            time.sleep(2)
+            # Functionality of self is normal
+            if state == "NORMAL":
+                while True:
+                    try:
+                        coordinator_msg = self.subscriber_socket.recv_string()
+                        (msg_type, host_ip, publisher_port, network_id) = coordinator_msg.split()
 
-        # if state is self.State.Normal:
+                        # If not election is going on currently, and all is normal
+                        if not self.ongoing_election:
+                            print(f"{host_ip} {publisher_port} {network_id}")
+
+                    # The exception block is reached if self.subscriber_socket.recv_string() times_out
+                    except:
+                        cprint("Coordinator is down, an election will be started\n", 'red')
+                        self.halted = True
+                        self.coordinator.coordinator_id = None
+
+
+            # Functionality if self is the coordinator
+            elif state == "COORDINATOR":
+
+                while True:
+                    # send string on topic, to inform other nodes that coordinator is alive.
+                    msg: str = f"UP {self.host_ip} {self.publisher_port} {self.network_id}"
+                    self.publisher_socket.send_string(msg)
+                    cprint(f"I am the coordinator: {self.network_id}", 'yellow')
+                    time.sleep(2)
+
+            # Functionality if an election is ongoing
+            elif state == "HALTED":
+                while True:
+                    try:
+                        coordinator_msg = self.subscriber_socket.recv_string()
+                        (msg_type, host_ip, publisher_port, network_id) = coordinator_msg.split()
+
+                        if msg_type == "UNHALT":
+                            self.coordinator.update(host_ip, int(publisher_port), int(network_id))
+                            self.halted = False
+                            break
+                    except:
+                        time.sleep(1)
+
+
+
+        # FIXME OLD CODE
         if state == "NORMAL":
             while True:
                 try:
-                    # TODO this message gets through but not pickle
                     coordinator_msg = self.subscriber_socket.recv_string()
-                    # request = parse.parse("UP {} {} {}", coordinator_msg)
                     (_, host_ip, publisher_port, network_id) = coordinator_msg.split()
-                    print(f"{host_ip} {publisher_port} {network_id}")
+                    # FIXME
+                    if not self.ongoing_election:
+                        print(f"{host_ip} {publisher_port} {network_id}")
 
-                    # Check if the one announcing coordinatorship actually has a higher ID than self
-                    if int(network_id) > self.network_id:
-                        cprint(f"Coordinator {host_ip}:{publisher_port} {network_id} is UP", 'green')
-                        self.coordinator.update(host_ip, int(publisher_port), int(network_id))
+                        # Check if the one announcing coordinatorship actually has a higher ID than self
+                        if int(network_id) > self.network_id:
+                            cprint(f"Coordinator {host_ip}:{publisher_port} {network_id} is UP", 'green')
+                            self.coordinator.update(host_ip, int(publisher_port), int(network_id))
 
+                    # Change the coordinator message
+
+                # The exception block is reached if self.subscriber_socket.recv_string() times_out
                 except:
-                    # TEST second condition is nesecary
-                    # if self.coordinator.coordinator_id != self.network_id:
                     if self.coordinator.coordinator_id != self.network_id and not self.ongoing_election:
                         cprint("Coordinator is down, an election will be started\n", 'red')
                         self.coordinator.coordinator_id = None
 
-        # elif state is self.State.Coordinator:
+                time.sleep(2)
+
         elif state == "COORDINATOR":
             # The while condition is used to terminate the thread when a node with a higher ID, has
             # entered the network.
@@ -196,34 +228,30 @@ class Node:
         crashes/deactivates or when, a new node with an higher ID than self, joins
         the network, and take on the responsibility of being coordinator.
         """
-        cprint(
-            f"[{self.host_ip}:{self.server_port}] is the new coordinator", 'green')
-        self.coordinator.update(
-            self.host_ip, self.server_port, self.network_id)
+        cprint(f"[{self.host_ip}:{self.server_port}] won the election and is the new coordinator", 'green')
+        self.coordinator.update(self.host_ip, self.server_port, self.network_id)
+        cprint(f"A total of {msg_count} messages were send this election", 'magenta')
 
-        cprint(
-            f"A total of {msg_count} messages were send this election", 'magenta')
+        # Send unhalt message to all other nodes informing, them to unset their election flag, and
+        # update their coordinator information.
+        msg: str = f"UNHALT {self.host_ip} {self.publisher_port} {self.network_id}"
+        self.publisher_socket.send_string(msg)
 
+        # TODO Do i really need to create a new thread???
         # Create a coordinator publisher thread
         self.publisher_thread = threading.Thread(target=self.check_network, args=["COORDINATOR"])
         self.publisher_thread.start()
-        # coordinator_publisher_thread: Thread = threading.Thread(target=self.check_network, args=["COORDINATOR"])
-        # coordinator_publisher_thread.start()
 
     # ------------------------------------------------------------------------------------------------------------------
-    # TODO i dont think this method is even used
-    # def disconnect(self) -> None:
-    #     """
-    #     When a node is shutdown i.e. when Ctrl+c is pressed on the keyboard, then this method is called
-    #     in an except block, which ensures that the node 'gently' disconnects from its connection
-    #     to the other nodes in the network.
-    #     """
-    #     for node in self.nodes:
-    #         # self.client_socket.disconnect("tcp://{}:{}".format(node.ip, node.server_port))
-    #         # self.client_socket.disconnect("tcp://{}:{}".format(node.ip, node.publisher_port))
-    #         self.client_socket.disconnect(f"tcp://{node.host_ip}:{node.server_port}")
-    #         # print("FOOFOFOFOFOF")
-    #         get_line_info()
+    def disconnect(self) -> None:
+        """
+        When a node is shutdown i.e. when Ctrl+c is pressed on the keyboard, then this method is called
+        in an except block, which ensures that the node 'gently' disconnects from its connection
+        to the other nodes in the network.
+        """
+        self.subscriber_socket.disconnect(f"tcp://{self.host_ip}:{self.publisher_port}")
+        for node in self.nodes:
+            self.client_socket.disconnect(f"tcp://{node.host_ip}:{node.server_port}")
 
     # ------------------------------------------------------------------------------------------------------------------
     def establish_connection(self, timeout_limit: int) -> None:
@@ -280,24 +308,23 @@ class Node:
         # published on the topic/port (every single topic from publisher)
         self.subscriber_socket.subscribe("")
 
-
-
     # ------------------------------------------------------------------------------------------------------------------
     # TODO
-    def election(self) -> None:
+    def improved_election(self) -> None:
         """
-        Have a list of clients instead of 1 client being connected to multiple servers.
-        Its hard to reason about
+        The improved bully election algorithm
         """
-        # use the count to verify if self is the highest node alive, and
-        # to print the number of messages sent.
         self.ongoing_election = True
 
+        # use the count to verify if self is the highest node alive, and
+        # to print the number of messages sent.
         count: int = 0
-        # msg_count: int = 0
+        highest_responder: int = 0
         msg_count: int = self.number_of_nodes - self.network_id
+
         for idx, client in enumerate(self.clients):
-            print(f"Sending election message to {idx}")
+            print(f"Sending election message to {idx + self.network_id}")
+
             try:
                 msg = {"msg_type": "ELECTION",
                        "node": {
@@ -307,32 +334,44 @@ class Node:
                            "network_id": self.network_id,
                        },
                        "args": self.number_of_nodes - self.network_id
-                       }
+                      }
 
                 client.send_pyobj(msg)
 
-                # client.send_string("ELECTION") # MAYBE ADD DATA ABOUT WHO send the message
-                # use pickle to serialize the message object pickle.dump(msg)
                 reply = client.recv_pyobj()
-                print(reply)
 
-                # TODO
-                # if reply["msg_type"] == "OK":
+                # check if repliers id is highest yet received
+                id = reply["node"]["network_id"]
+                if id > highest_responder:
+                    highest_responder = id
 
-                if reply["args"] is not None:
-                    get_line_info()
-                    msg_count += reply["args"]
                 count += 1
+
+            # The except block is reached if client.send_pyobj(msg) times out
             except:
                 print(f"No response received from {idx}")
-                # pass
+                continue
 
-        # cprint(f"count is {count}", "magenta")
+        # If no one responded then self is the highest node currently, and becomes the new coordinator
         if count == 0:
             self.declare_new_coordinator(msg_count)
+        # If one or more responds the node responding with the highest ID, becomes the next election holder
+        else:
+            msg = {"msg_type": "CONTINUE",
+                    "node": {
+                        "host_ip": self.host_ip,
+                        "publisher_port": self.publisher_port,
+                        "server_port": self.server_port,
+                        "network_id": self.network_id,
+                    },
+                    "args": self.number_of_nodes - self.network_id
+                  }
+
+            # inform the highest responder to continue the election
+            self.clients[highest_responder].send_pyobj(msg)
 
         # do nothing there are higher nodes in the system
-        self.ongoing_election = False
+        # self.ongoing_election = False
 
     # ------------------------------------------------------------------------------------------------------------------
     def is_coordinator(self) -> bool:
@@ -364,30 +403,37 @@ class Node:
         """
         """
         while True:
-            print("fuck")
-            # Wait for next request from client, request are only send when an election is hold initiated
-            get_line_info()
-            request = self.server_socket.recv_pyobj()
-            if request["msg_type"] == "ELECTION":
-                msg = {"msg_type": "OK",
-                       "node": {
-                           "host_ip": self.host_ip,
-                           "publisher_port": self.publisher_port,
-                           "server_port": self.server_port,
-                           "network_id": self.network_id,
-                       },
-                       #    "args": None
-                       "args": self.number_of_nodes - self.network_id
-                       }
-                try:
-                    self.server_socket.send_pyobj(msg)  # send message back
-                    if not self.ongoing_election:
-                        self.election()  # hold own election
-                except:
-                    pass
-                    # continue
+            try:
+                # Wait for next request from client, request are only send when an election is hold
+                request = self.server_socket.recv_pyobj()
+
+                if request["msg_type"] == "ELECTION":
+                    msg = {"msg_type": "OK",
+                        "node": {
+                            "host_ip": self.host_ip,
+                            "publisher_port": self.publisher_port,
+                            "server_port": self.server_port,
+                            "network_id": self.network_id,
+                        },
+                        "args": self.number_of_nodes - self.network_id
+                        }
+                    try:
+                        self.server_socket.send_pyobj(msg)  # send message back
+                        if not self.ongoing_election:
+                            self.improved_election()  # hold own election
+                    except:
+                        continue
+                # This msg_type is only received if a lower node is holding an election, and previously
+                # send an election message to this node, to check if it was OK.
+                # The message instructs this node to take over the election
+                elif request["msg_type"] == "CONTINUE":
+                    self.improved_election(
+
+
+
 
     # ------------------------------------------------------------------------------------------------------------------
+    # FIXME do I even need this function???
     def run_client(self) -> None:
         """
         The coordinator is set to none when selfs subscriber does not register the heart-beat from
@@ -396,18 +442,10 @@ class Node:
         while True:
             # TEST the second condition added
             if self.coordinator.coordinator_id is None and not self.ongoing_election:
-                self.election()
+                self.improved_election()
+
 
 # ----------------------------------------------------------------------------------------------------------------------
-
-# TODO
-
-
-def check_input(input: Tuple[str, int, int, int]) -> bool:
-    # pattern = re.compile('')
-    return True
-
-
 def main() -> None:
 
     if len(sys.argv) != 5:
@@ -416,8 +454,7 @@ def main() -> None:
         print("The first argument should be the host_ip address e.g. 127.0.0.1")
         print("The second- and third argument should be the client- and server port respectively e.g. 9000 9001")
         print("The fourth argument should be the unique unsigned integer id of the node being started e.g 2")
-        cprint(
-            "NOTE all four arguments MUST match one of the lines in the file network.config", 'red')
+        cprint("NOTE all four arguments MUST match one of the lines in the file network.config", 'red')
         sys.exit(1)
 
     host_ip: str = str(sys.argv[1])
@@ -425,18 +462,14 @@ def main() -> None:
     server_port: int = int(sys.argv[3])
     network_id: int = int(sys.argv[4])
 
-    timeout_limit: int = 2500
-
-    if not check_input((host_ip, publisher_port, server_port, network_id)):
-        cprint("INVALID INPUT", 'red')
-        # TODO
-        sys.exit(1)
+    # timeout_limit: int = 2000
+    # TEST a higher timeout period
+    timeout_limit: int = 4000
 
     node: Node = Node(host_ip, publisher_port, server_port, network_id)
     try:
         node.run(timeout_limit)
     # when hitting Ctrl+C
-    # FIXME does not enter
     except KeyboardInterrupt:
         node.disconnect()
 
