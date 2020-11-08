@@ -18,6 +18,7 @@ class Network {
     friend class Test;
 
     private:
+        // Struct representing the data describing a node in the network
         struct Node {
             int id;
             int coordinator_id;
@@ -32,28 +33,20 @@ class Network {
             }
         };
 
-        vector<Node> nodes;
+        vector<Node> nodes;  // the network has a vector of Nodes
         int active_nodes = 0;
         int coordinator_id;
-        Rng rng_engine;
+        Rng rng_engine;  // random number generator
 
-        // DONE
         void halt_network();
-        // DONE
         void improved_bully_election(int node);
-        // DONE
         void declare_new_coordinator(int node);
-
         void deactivate_coordinator();
-        // DONE
         void tick();
 
     public:
-        // DONE
         Network(int n);
-        // DONE
         void print_network_topology();
-        // DONE
         void run(std::size_t time);
 };
 

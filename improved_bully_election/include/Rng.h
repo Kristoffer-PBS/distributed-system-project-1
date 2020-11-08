@@ -7,6 +7,7 @@
 
 using namespace std;
 
+// Random number generator class
 class Rng {
     public:
     Rng() {}

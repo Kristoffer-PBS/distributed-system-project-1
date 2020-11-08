@@ -9,7 +9,6 @@ Network::Network(int n) : active_nodes(n) {
     coordinator_id = n - 1;
 }
 
-// DONE
 void Network::declare_new_coordinator(int node) {
 
     cout << print_yellow("node " + std::to_string(nodes[node].id) + " is the new coordinator") << endl;
@@ -22,7 +21,6 @@ void Network::declare_new_coordinator(int node) {
     coordinator_id = node;
 }
 
-// DONE
 void Network::halt_network() {
     for (auto& node : nodes) {
         node.halted = true;
@@ -30,7 +28,6 @@ void Network::halt_network() {
 }
 
 
-// DONE
 void Network::print_network_topology() {
 
     // 1. compute the number of digits needed to properly, align all ids in the network
@@ -54,7 +51,8 @@ void Network::print_network_topology() {
     }
     cout << "╮" << "\n";
 
-    // 3.
+    // 3. iterate through the number of Nodes, and print their id with a matching color representing, their
+    // state: normal(green), red(deactivated), yellow(coordinator).
     for (int j = 0; j < nodes.size(); j++) {
         cout << "│";
 
@@ -75,7 +73,7 @@ void Network::print_network_topology() {
 
     cout << "│" << endl;
 
-    // 4.
+    // 4. print the bottom border.
     cout << "╰";
 
     for (int i = 1; i < (width + 2 + 1) * nodes.size(); i++) {
@@ -91,7 +89,6 @@ void Network::print_network_topology() {
     cout << "\n\n";
 }
 
-// DONE
 void Network::improved_bully_election(int node) {
     int count = 0;
     int highest_id = nodes[node].id + 1;
@@ -99,6 +96,8 @@ void Network::improved_bully_election(int node) {
     // only check nodes with an higher id than self.
     for (int i = nodes[node].id + 1; i < nodes.size(); i++) {
 
+        // update the variable storing the id, of the node responding to the election msg with the
+        // highest id.
         if(nodes[i].active) {
             highest_id = std::max(highest_id, i);
             count += 1;
@@ -122,7 +121,6 @@ void Network::improved_bully_election(int node) {
     }
 }
 
-// DONE
 void Network::tick() {
     // generate a random sequence of numbers, used to index the nodes
     vector<int> seq = rng_engine.random_sequence(0, nodes.size() - 1);
@@ -134,6 +132,8 @@ void Network::tick() {
         // of an ongoing election, then it can check up on the coordinator.
         if (coordinator_id != nodes[i].id && !nodes[i].halted) {
 
+            // if the coordinator is discovered to not be active, then the network is halted
+            // and and election is started by the node which discovered it.
             if (!nodes[coordinator_id].active) {
 
                 cout << "Node " << print_green(std::to_string(nodes[i].id)) << " has discovered ";
@@ -174,7 +174,7 @@ void Network::deactivate_coordinator() {
     nodes[coordinator_id].active = false;
 }
 
-
+// Simple simulation to run
 void Network::run(std::size_t time_units) {
 
     for (int i = 0; i < time_units; i++) {
