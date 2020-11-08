@@ -21,6 +21,18 @@ def get_line_info() -> None:
           [1][2], ":", inspect.stack()[1][3])
 
 
+# UNIT tests
+def test_constructor():
+    dummy = Node("127.0.0.1", 9000, 9001, 1)
+    assert(dummy.number_of_nodes == 8)
+
+def test_number_of_clients():
+    dummy = Node("127.0.0.1", 9006, 9007, 4)
+    dummy.establish_connection(2000)
+    assert(len(dummy.clients) == 8 - 4)
+
+
+
 class Node:
     class Info:
         """
@@ -132,9 +144,6 @@ class Node:
                     network_id=int(network_id)
                 ))
                 self.number_of_nodes += 1
-
-        # TEST
-        assert(self.number_of_nodes == 8)
 
     # ------------------------------------------------------------------------------------------------------------------
     def check_network(self, state: str) -> None:
