@@ -1,6 +1,4 @@
-
 #include "../include/Network.h"
-
 
 
 Network::Network(int n) : active_nodes(n) {
@@ -30,8 +28,6 @@ void Network::halt_network() {
         node.halted = true;
     }
 }
-
-
 
 
 // DONE

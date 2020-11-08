@@ -12,7 +12,11 @@
 
 using namespace std;
 
+class Test;
+
 class Network {
+    friend class Test;
+
     private:
         struct Node {
             int id;
