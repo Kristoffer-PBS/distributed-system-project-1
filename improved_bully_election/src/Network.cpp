@@ -14,7 +14,7 @@ Network::Network(int n) : active_nodes(n) {
 // DONE
 void Network::declare_new_coordinator(int node) {
 
-    cout << print_cyan("node " + std::to_string(nodes[node].id) + " is the new coordinator") << endl;
+    cout << print_yellow("node " + std::to_string(nodes[node].id) + " is the new coordinator") << endl;
 
     for (int i = 0; i < nodes.size(); i++) {
         nodes[i].coordinator_id = node;
@@ -78,6 +78,8 @@ void Network::print_network_topology() {
     }
 
     cout << "│" << endl;
+
+    // 4.
     cout << "╰";
 
     for (int i = 1; i < (width + 2 + 1) * nodes.size(); i++) {
@@ -107,7 +109,11 @@ void Network::improved_bully_election(int node) {
         }
     }
 
-    cout << "Node " << print_blue(std::to_string(nodes[node].id)) << " has sent " << print_magenta(std::to_string(count)) << " messages this election" << endl;
+    cout << "Node " << print_blue(std::to_string(nodes[node].id))
+         << " has sent " << print_magenta(std::to_string(nodes.size() - 1 - nodes[node].id))
+         << " messages this election"
+         << " and recevied " << print_magenta(std::to_string(count)) << " replies"
+         << endl;
 
     // declare self coordinator
     if (count == 0) {
@@ -136,7 +142,7 @@ void Network::tick() {
 
                 cout << "Node " << print_green(std::to_string(nodes[i].id)) << " has discovered ";
                 cout << "that the coordinator " << print_yellow(std::to_string(coordinator_id));
-                cout << " is down\n" << print_red("starting election") << endl;
+                cout << " is down\n" << print_yellow("starting election") << endl;
 
                 halt_network();
                 improved_bully_election(i);
@@ -161,7 +167,7 @@ void Network::tick() {
         cout << print_green("activating node: " + std::to_string(rand_num)) << endl;
         nodes[rand_num].active = true;
         cout << "Node " << print_blue(std::to_string(rand_num)) << " does not now who the coordinator is";
-        cout << "and has to start an election to find out.\n"  << endl;
+        cout << " and has to start an election to find out.\n"  << endl;
         // start election when waking up again
         improved_bully_election(nodes[rand_num].id);
     }
@@ -184,6 +190,6 @@ void Network::run(std::size_t time_units) {
         }
 
         std::this_thread::sleep_for(std::chrono::seconds(1));
-        // std::cin.get();
+        /* std::cin.get(); */
     }
 }

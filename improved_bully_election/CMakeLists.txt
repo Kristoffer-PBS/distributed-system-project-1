@@ -5,7 +5,15 @@ set(CMAKE_CXX_STANDARD 17)
 
 add_executable(improved_bully_election_algorithm_dummy
     src/main.cpp 
-    src/Network.cpp include/Network.h 
-    src/Rng.cpp include/Rng.h
+    src/Network.cpp   include/Network.h 
+    src/Rng.cpp       include/Rng.h
+    src/utilities.cpp include/utilities.h
+)
+
+# Test binary
+add_executable(testing
+    src/test.cpp
+    src/Network.cpp   include/Network.h 
+    src/Rng.cpp       include/Rng.h
     src/utilities.cpp include/utilities.h
 )
