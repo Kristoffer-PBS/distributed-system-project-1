@@ -1,5 +1,5 @@
-#ifndef NETWORK2_H
-#define NETWORK2_H
+#ifndef NETWORK_H
+#define NETWORK_H
 
 #include <chrono>
 #include <iostream>
@@ -25,6 +25,8 @@ class Network {
             bool halted;
             bool active;
             bool election_flag;
+            int messages_sent     = 0;
+            int messages_received = 0;
 
             Node(int id, int coordinator_id) : id(id), coordinator_id(coordinator_id) {
                 active = true;
@@ -50,4 +52,4 @@ class Network {
         void run(std::size_t time);
 };
 
-#endif // NETWORK2_H
+#endif // NETWORK_H

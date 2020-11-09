@@ -10,13 +10,22 @@ Network::Network(int n) : active_nodes(n) {
 }
 
 void Network::declare_new_coordinator(int node) {
+    int total_messages_sent = 0;
+
+    // The coordinator messages sent back.
+    total_messages_sent += node;
 
     cout << print_yellow("node " + std::to_string(nodes[node].id) + " is the new coordinator") << endl;
 
     for (int i = 0; i < nodes.size(); i++) {
         nodes[i].coordinator_id = node;
         nodes[i].halted = false;
+        total_messages_sent += nodes[i].messages_sent + nodes[i].messages_received;
+        nodes[i].messages_sent = 0;
+        nodes[i].messages_received = 0;
     }
+
+    cout << print_cyan("A TOTAL OF " + std::to_string(total_messages_sent) + " WERE SENT THIS ELECTION") << "\n\n";
 
     coordinator_id = node;
 }
@@ -90,28 +99,33 @@ void Network::print_network_topology() {
 }
 
 void Network::improved_bully_election(int node) {
-    int count = 0;
+    nodes[node].messages_sent     = 0;
+    nodes[node].messages_received = 0;
+
+    // int count = 0;
     int highest_id = nodes[node].id + 1;
 
     // only check nodes with an higher id than self.
     for (int i = nodes[node].id + 1; i < nodes.size(); i++) {
+        nodes[node].messages_sent += 1;
 
         // update the variable storing the id, of the node responding to the election msg with the
         // highest id.
         if(nodes[i].active) {
             highest_id = std::max(highest_id, i);
-            count += 1;
+            // count += 1;
+            nodes[node].messages_received += 1;
         }
     }
 
     cout << "Node " << print_blue(std::to_string(nodes[node].id))
          << " has sent " << print_magenta(std::to_string(nodes.size() - 1 - nodes[node].id))
          << " messages this election"
-         << " and recevied " << print_magenta(std::to_string(count)) << " replies"
+         << " and recevied " << print_magenta(std::to_string(nodes[node].messages_received)) << " replies"
          << endl;
 
     // declare self coordinator
-    if (count == 0) {
+    if (nodes[node].messages_received == 0) {
         declare_new_coordinator(node);
     }
 
@@ -162,7 +176,7 @@ void Network::tick() {
     if (chance % 2 == 1 && !nodes[rand_num].active) {
         cout << print_green("activating node: " + std::to_string(rand_num)) << endl;
         nodes[rand_num].active = true;
-        cout << "Node " << print_blue(std::to_string(rand_num)) << " does not now who the coordinator is";
+        cout << "Node " << print_blue(std::to_string(rand_num)) << " does not know who the coordinator is";
         cout << " and has to start an election to find out.\n"  << endl;
         // start election when waking up again
         improved_bully_election(nodes[rand_num].id);

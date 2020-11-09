@@ -6,7 +6,6 @@
 using namespace std;
 
 string print_red(const string& str);
-string print_red(const string& str);
 string print_green(const string& str);
 string print_yellow(const string& str);
 string print_blue(const string& str);
