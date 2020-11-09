@@ -21,6 +21,18 @@ The python dependencies are available in the python package index, and can be in
 pip install zmq termcolor
 ```
 
+When running the python file, you have to specify 4 command line arguments, which has to be one of the the lines `bully_election/network.config`:
+1. The host_ip
+2. the server port
+3. the publisher port
+4. the unique id used in the bully election
+
+An example of how to start a node could be:
+```sh
+  python bully_election.py 127.0.0.1 9000 9001 1
+```
+
+
 The C++ implementation for the improved version do not use external libraries, and should   be able to be built with any C++ compiler supporting the 2011 ISO standard or later. Simply run the `improved_bully_election/CMakeLists.txt` in your preferred way. NOTE the executable invocation requires one unsigned integer argument specifying the number of nodes in the network. So if you use an IDE like Visual Studio or CLion and you get an error when building and running the project this is the reason why. Instead find the executable and run it like e.g  `./improved_bully_election_dummy 10`.
 
 
